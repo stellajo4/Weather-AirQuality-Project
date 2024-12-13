@@ -201,6 +201,17 @@ def get_multiple_city_combined_data(city_requests, db_cursor):
     if combined_data:
         insert_combined_data(db_cursor, combined_data)
 
+def create_avg_temperature_table(db_cursor):
+    """Create the table to store average temperatures."""
+    db_cursor.execute('''
+    CREATE TABLE IF NOT EXISTS city_avg_temperature (
+        city TEXT PRIMARY KEY,
+        avg_temperature REAL
+    )
+    ''')
+    db_cursor.connection.commit()  # Ensure changes are committed
+    print("Table city_avg_temperature created or already exists.")
+
 # Example main function to run the entire process
 def main():
     city_requests = [
