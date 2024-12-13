@@ -9,8 +9,8 @@ def main():
 
     with sqlite3.connect('global_combined_data.db') as conn:  # Unified database
         cursor = conn.cursor()
-        create_combined_table(cursor)  # Create the combined data table if it doesn't exist
-        get_multiple_city_combined_data(city_requests, cursor)  # Fetch and insert combined data
+        create_combined_table(cursor)
+        get_multiple_city_combined_data(city_requests, cursor)
         conn.commit()
 
 if __name__ == "__main__":
