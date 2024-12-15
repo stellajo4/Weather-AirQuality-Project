@@ -1,5 +1,6 @@
 import requests
 import sqlite3
+import os
 
 # Fetch AQI data using the aqicn API
 def get_aqi_data(city):
@@ -15,9 +16,6 @@ def get_weather_data_for_city(city):
 
 # General API data fetch function
 def get_api_data(api_url):
-    """
-    Fetches data from the API using the provided URL.
-    """
     response = requests.get(api_url)
     if response.status_code == 200:
         data = response.json()
@@ -183,11 +181,15 @@ def get_combined_city_data(city, db_cursor):
     return {'city_data': city_data, 'weather_data': weather_info}
 
 # Retrieve and insert combined AQI and weather data for multiple cities (up to 25 at a time)
-def get_multiple_city_combined_data(city_requests, db_cursor):
-    """Retrieve and insert combined AQI and weather data for multiple cities, limiting to 25 each time."""
+def get_multiple_city_combined_data(city_requests, db_cursor, batch_size=25):
+    """Retrieve and insert combined AQI and weather data for multiple cities, processing them in batches."""
+    start_index = get_last_processed_city_index()  # Get the last processed city index
+    total_cities = len(city_requests)
+    end_index = start_index + batch_size
+    cities_to_process = city_requests[start_index:end_index]
+
     combined_data = []
-    
-    for city in city_requests:
+    for city in cities_to_process:
         print(f"Fetching combined data for {city}...")
         data = get_combined_city_data(city, db_cursor)
         if data:
@@ -197,6 +199,12 @@ def get_multiple_city_combined_data(city_requests, db_cursor):
     
     if combined_data:
         insert_combined_data(db_cursor, combined_data)
+        set_last_processed_city_index(end_index)  # Update progress file to the next batch
+
+    if end_index >= total_cities:
+        print("All cities have been processed.")
+    else:
+        print(f"Processed cities up to {city_requests[end_index-1]}. Next batch will start from {city_requests[end_index]}.")
 
 def create_avg_temperature_table(db_cursor):
     """Create the table to store average temperatures using city_id."""
@@ -209,3 +217,18 @@ def create_avg_temperature_table(db_cursor):
     ''')
     db_cursor.connection.commit()
     print("Table city_avg_temperature created or already exists.")
+
+def get_last_processed_city_index(progress_file="last_processed_city.txt"):
+    """Retrieve the index of the last processed city from the file."""
+    if os.path.exists(progress_file): # Got this structre from ChatGPT
+        with open(progress_file, 'r') as f:
+            try:
+                return int(f.read().strip()) 
+            except ValueError:
+                return 0
+    return 0  # Default to start from the beginning if the file doesn't exist
+
+def set_last_processed_city_index(index, progress_file="last_processed_city.txt"):
+    """Store the index of the last processed city into the file."""
+    with open(progress_file, 'w') as f:
+        f.write(str(index))
