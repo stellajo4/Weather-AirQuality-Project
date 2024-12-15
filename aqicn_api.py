@@ -130,17 +130,3 @@ def insert_aqi_data(db_cursor, city_data_list):
             print(f"Inserted {city} data for timestamp {timestamp}.")
     
     db_cursor.connection.commit()
-
-
-def main():
-    
-    with sqlite3.connect('global_combined_data.db') as conn:  # Use a common database
-        cursor = conn.cursor()
-        create_progress_table(cursor)  # Create the progress table
-        create_pollutant_key_table(cursor)  # Create the pollutant key table
-        create_aqi_table(cursor)  # Create the AQI table
-        get_multiple_city_aqi(city_requests, cursor)
-        conn.commit()
-
-if __name__ == "__main__":
-    main()

@@ -1,9 +1,10 @@
 import sqlite3
 from datetime import datetime
+from file_functions import get_api_data
 
 def get_city_weather(city):
     """Get weather data for a city."""
-    from file_functions import get_api_data  # Local import inside the function
+    from file_functions import get_api_data
     api_token = "3c3f7d2d9f242452b9c1389c3172c412"
     request_url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_token}"
     return get_api_data(request_url)
@@ -66,21 +67,3 @@ def get_multiple_city_weather(city_requests, db_cursor):
 
     if all_city_data:
         insert_weather_data(db_cursor, all_city_data)
-
-def main():
-    city_requests = [
-        "New York", "London", "Tokyo", "Delhi", "Shanghai", "Sydney", "Paris", "Berlin", "Cairo", "Moscow",
-        "Dubai", "San Francisco", "São Paulo", "Mumbai", "Los Angeles", "Mexico City", "Seoul", "Istanbul", "Hong Kong", "Lagos",
-        "Bangkok", "Rome", "Jakarta", "Kuala Lumpur", "Singapore", "Riyadh", "Manila", "Karachi", "Madrid",
-        "Chennai", "Melbourne", "Toronto", "Vienna", "Cape Town", "Montreal", "Rio de Janeiro", "Santiago", "Lima", "Vancouver",
-        "Buenos Aires", "Bangalore", "Oslo", "Dubai", "Kolkata", "Tehran", "Zurich", "Copenhagen", "Auckland", "Hong Kong",
-    ]
-
-    with sqlite3.connect('global_combined_data.db') as conn:  # Use a common database
-        cursor = conn.cursor()
-        create_weather_table(cursor)  # Create the weather table
-        get_multiple_city_weather(city_requests, cursor)
-        conn.commit()
-
-if __name__ == "__main__":
-    main()
