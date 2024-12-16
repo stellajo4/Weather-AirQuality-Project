@@ -49,8 +49,6 @@ def main():
         "London", "Madrid", "Shanghai", "Bangalore", "Rio de Janeiro", "Seoul", "Lagos", "Jakarta", "Berlin", "Rome", "Mumbai", "Sydney", 
         "Cape Town", "Paris", "Vienna", "Helsinki", "Kuala Lumpur", "London", "Santiago", "Los Angeles", "Toronto", "San Francisco", "Istanbul"
     ]
-
-    
     with sqlite3.connect('global_combined_data.db') as conn:
         cursor = conn.cursor()
         create_combined_tables(cursor)
@@ -69,7 +67,7 @@ def main():
         conn.commit()
     show_table(output_file)
     print(f"Process complete! Results are saved in {output_file}")
-    #visualizations.main()
+    visualizations.main()
 
 if __name__ == "__main__":
     main()

@@ -1,126 +1,134 @@
 import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
+import os
 
-# Connect to the SQLite database
 def connect_to_db(db_name='global_combined_data.db'):
-    """Connect to the SQLite database."""
     conn = sqlite3.connect(db_name)
     return conn
 
-# Check city_aqi_data table
-def check_aqi_data():
-    """Check the first few rows of the city_aqi_data table."""
-    conn = connect_to_db()
-    query = "SELECT * FROM city_aqi_data LIMIT 10;"
-    df = pd.read_sql(query, conn)
-    conn.close()
-    print("city_aqi_data")
-    print(df)
-
-# Check city_weather_data table
-def check_weather_data():
-    """Check the first few rows of the city_weather_data table."""
-    conn = connect_to_db()
-    query = "SELECT * FROM city_weather_data LIMIT 10;"
-    df = pd.read_sql(query, conn)
-    conn.close()
-    print("city_weather_data")
-    print(df)
-
-# Fetch the joined data using the SQL query
-def fetch_joined_data():
-    """Fetch joined AQI and weather data from both tables."""
-    conn = connect_to_db()
+def fetch_avg_temperature_data(db_cursor):
     query = '''
-    SELECT DISTINCT
-        aqi.city,
-        aqi.timestamp,
-        aqi.aqi,
-        aqi.forecasted_pm25_avg,
-        aqi.forecasted_pm10_avg,
-        aqi.forecasted_o3_avg,
-        weather.temperature,
-        weather.humidity,
-        weather.wind_speed
-    FROM
-        city_aqi_data AS aqi
-    JOIN
-        city_weather_data AS weather
-    ON
-        aqi.city = weather.city
-    AND
-        aqi.timestamp = weather.timestamp
-    WHERE
-        aqi.aqi IS NOT NULL
-    AND
-        weather.temperature IS NOT NULL
+    SELECT city_id, avg_temperature
+    FROM city_avg_temperature
     '''
-    df = pd.read_sql(query, conn)
-    conn.close()
-    print("Joined data:")
-    print(df.head())  # Print the first few rows to see if data is being returned
+    df = pd.read_sql_query(query, db_cursor.connection)
     return df
 
-# Create a scatter plot to visualize the relationship between AQI and temperature
-def plot_aqi_vs_temperature(df):
-    """Plot AQI vs Temperature and save as PNG."""
+def fetch_aqi_data(db_cursor):
+    query = '''
+    SELECT city_aqi_data.city_id, 
+           aqi, 
+           forecasted_pm25_avg, 
+           forecasted_pm10_avg, 
+           forecasted_o3_avg, 
+           humidity, 
+           wind_speed,
+           city_weather_data.temperature  -- Adding the temperature column
+    FROM city_aqi_data
+    JOIN city_weather_data ON city_aqi_data.city_id = city_weather_data.city_id
+    '''
+    df = pd.read_sql_query(query, db_cursor.connection)
+    return df
+
+def save_plot(plt, plot_name):
+    plot_folder = os.path.join(os.getcwd(), 'plots') #asked chatGPT how to make a relative path
+    if not os.path.exists(plot_folder):
+        os.makedirs(plot_folder)
+    file_path = os.path.join(plot_folder, f"{plot_name}.png")
+
+    plt.savefig(file_path)
+    plt.close()  
+    print(f"Plot saved as: {file_path}")
+
+def plot_avg_temperature(df):
+    plt.figure(figsize=(12, 6))
+    plt.bar(df['city_id'], df['avg_temperature'], color='orange', alpha=0.7)
+    plt.title('Average Temperature in Cities')
+    plt.xlabel('City ID')
+    plt.ylabel('Average Temperature (°C)')
+    plt.xticks(rotation=90)
+    plt.tight_layout()
+    save_plot(plt, 'average_temperature')
+
+def plot_aqi_heatmap(df):
+    """Plot a heatmap for AQI and pollutants (PM25, PM10, O3)."""
+    heatmap_data = df.pivot_table(index='city_id', 
+                                  values=['forecasted_pm25_avg', 'forecasted_pm10_avg', 'forecasted_o3_avg'],
+                                  aggfunc='mean')
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(heatmap_data, annot=True, cmap='coolwarm', fmt=".1f")
+    plt.title('Heatmap of AQI across Cities')
+    plt.ylabel('City ID')
+    plt.xlabel('Pollutants')
+    save_plot(plt, 'aqi_heatmap')
+
+def plot_pollutant_comparison(df):
+    """Plot a comparison of different pollutants across cities."""
+    pollutants = ['forecasted_pm25_avg', 'forecasted_pm10_avg', 'forecasted_o3_avg']
+    df_pollutants = df[pollutants].mean().reset_index()
+    df_pollutants.columns = ['Pollutant', 'Average Value']
+
     plt.figure(figsize=(10, 6))
-    plt.scatter(df['temperature'], df['aqi'], alpha=0.7, c=df['aqi'], cmap='viridis')
-    plt.title('AQI vs Temperature')
+    sns.barplot(x='Pollutant', y='Average Value', data=df_pollutants, palette='Blues')
+    plt.title('Average Pollutant Levels in Cities')
+    save_plot(plt, 'pollutant_comparison')
+
+
+def plot_temperature_distribution(df):
+    df['temperature'] = pd.to_numeric(df['temperature'], errors='coerce')
+    df_clean = df.dropna(subset=['temperature'])
+    plt.figure(figsize=(10, 6))
+    sns.histplot(df_clean['temperature'], bins=30, kde=True, color='blue', alpha=0.7)
+    plt.title('Temperature Distribution Across Cities')
     plt.xlabel('Temperature (°C)')
-    plt.ylabel('AQI')
-    plt.colorbar(label='AQI')
-    plt.grid(True)
-    plt.savefig('aqi_vs_temperature.png')  # Save the plot as a PNG image
-    plt.close()  # Close the plot to avoid display in non-interactive environments
+    plt.ylabel('Frequency')
+    save_plot(plt, 'temperature_distribution')
 
-# Create a line plot to visualize the relationship between AQI and humidity
-def plot_aqi_vs_humidity(df):
-    """Plot AQI vs Humidity and save as PNG."""
+def plot_wind_speed_vs_aqi(df):
+    df['wind_speed'] = pd.to_numeric(df['wind_speed'], errors='coerce')
+    df['aqi'] = pd.to_numeric(df['aqi'], errors='coerce')
+    df_clean = df.dropna(subset=['wind_speed', 'aqi'])
     plt.figure(figsize=(10, 6))
-    plt.plot(df['humidity'], df['aqi'], marker='o', linestyle='-', color='b')
-    plt.title('AQI vs Humidity')
-    plt.xlabel('Humidity (%)')
-    plt.ylabel('AQI')
-    plt.grid(True)
-    plt.savefig('aqi_vs_humidity.png')  # Save the plot as a PNG image
-    plt.close()
-
-# Create a line plot to visualize the relationship between AQI and wind speed
-def plot_aqi_vs_wind_speed(df):
-    """Plot AQI vs Wind Speed and save as PNG."""
-    plt.figure(figsize=(10, 6))
-    plt.plot(df['wind_speed'], df['aqi'], marker='x', linestyle='-', color='r')
-    plt.title('AQI vs Wind Speed')
+    sns.scatterplot(x='wind_speed', y='aqi', data=df_clean, color='purple', alpha=0.7)
+    plt.title('Wind Speed vs AQI for Cities')
     plt.xlabel('Wind Speed (m/s)')
     plt.ylabel('AQI')
-    plt.grid(True)
-    plt.savefig('aqi_vs_wind_speed.png')  # Save the plot as a PNG image
-    plt.close()
+    save_plot(plt, 'wind_speed_vs_aqi')
 
-# Main function to run the entire process
+def plot_correlation_heatmap(df):
+    df_corr = df[['aqi', 'forecasted_pm25_avg', 'forecasted_pm10_avg', 'forecasted_o3_avg', 'humidity', 'wind_speed', 'temperature']].corr()
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(df_corr, annot=True, cmap='coolwarm', fmt=".2f", linewidths=0.5)
+    plt.title('Correlation Heatmap of AQI and Weather Data')
+    save_plot(plt, 'correlation_heatmap')
+
+def plot_aqi_boxplot(df):
+    plt.figure(figsize=(10, 6))
+    sns.boxplot(x='city_id', y='aqi', data=df, color='skyblue')
+    plt.title('AQI Distribution Across Cities')
+    plt.xlabel('City ID')
+    plt.ylabel('AQI')
+    plt.xticks(rotation=90)
+    save_plot(plt, 'aqi_boxplot')
+
 def main():
-    """Main function to check data, fetch the joined data, and create plots."""
-    
-    # Check the data in the tables
-    print("Checking data in city_aqi_data table...")
-    check_aqi_data()
-    
-    print("Checking data in city_weather_data table...")
-    check_weather_data()
+    conn = connect_to_db()
+    cursor = conn.cursor()
+    df_avg_temp = fetch_avg_temperature_data(cursor)
+    plot_avg_temperature(df_avg_temp)
+    df_aqi = fetch_aqi_data(cursor)
+    plot_aqi_heatmap(df_aqi)
+    plot_pollutant_comparison(df_aqi)
+    plot_temperature_distribution(df_aqi)
+    plot_wind_speed_vs_aqi(df_aqi)
+    plot_correlation_heatmap(df_aqi)
+    plot_aqi_boxplot(df_aqi)
 
-    # Fetch the joined data from the database
-    df = fetch_joined_data()
+    conn.close()
 
-    # Visualize the relationship between AQI and Temperature
-    plot_aqi_vs_temperature(df)
 
-    # Visualize the relationship between AQI and Humidity
-    plot_aqi_vs_humidity(df)
-
-    # Visualize the relationship between AQI and Wind Speed
-    plot_aqi_vs_wind_speed(df)
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
+
